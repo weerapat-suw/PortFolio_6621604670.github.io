@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>PortFolio</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- core three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // ✅ เปิดใช้งานเงา!
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+
+        // ✅ กล้อง
+        const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+
+        let cameraPosition = new THREE.Vector3(-1.5, 3, -.8);       // ตำแหน่งกล้องเริ่มต้นของจริง
+        let pickObjectPosition = new THREE.Vector3(-5, 3, -.8);   // มอง
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // camera.position.set(0, 3, 9);
+        // camera.lookAt(0, 0, 0);
+        // const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        
+        // ✅ Ambient Light เล็กน้อยให้สว่างรวม
+        const AmbientLight = new THREE.AmbientLight(0x454040);
+        scene.add(AmbientLight);
+
+        // ✅ Directional Light ที่สร้างเงา
+        const Directionallight = new THREE.DirectionalLight(0xffdddd, 1);
+        Directionallight.position.set(0, 2, 15);
+        //Directionallight.castShadow = true;
+        scene.add(Directionallight);
+        
+        Directionallight.target.position.set(0, 0, 15);
+        scene.add(Directionallight.target);
+
+        // บังคับ update matrix ของ target
+        Directionallight.target.updateMatrixWorld();
+
+        // const DirectionalHelper = new THREE.DirectionalLightHelper(Directionallight, 0.2);
+        // scene.add(DirectionalHelper);
+
+        // ✅ Spot Light ที่สร้างเงา
+        const Spotlight = new THREE.SpotLight(0xffffff, 1);
+        Spotlight.angle = Math.PI / 5; // มุมของแสง
+        Spotlight.position.set(0, 1.5, 1);
+        Spotlight.target.position.set(0, 1.8, 0);
+        //Spotlight.castShadow = true;
+        Spotlight.distance = 10; // ระยะที่แสงส่องถึง
+        scene.add(Spotlight);
+        scene.add(Spotlight.target);
+
+        // ✅ Spot Light ที่สร้างเงา
+        const Spot2 = new THREE.SpotLight(0xffffff, 2);
+        Spot2.angle = Math.PI / 5; // มุมของแสง
+        Spot2.position.set(1, 1.5, 1);
+        Spot2.target.position.set(-5, 3, 0);
+        Spot2.distance = 10; // ระยะที่แสงส่องถึง
+        scene.add(Spot2);
+        scene.add(Spot2.target);
+
+        // ✅ Spot Light ที่สร้างเงา
+        const Spot3 = new THREE.SpotLight(0xffffff, 5);
+        Spot3.angle = Math.PI / 5; // มุมของแสง
+        Spot3.position.set(0, 1.5, 4);
+        Spot3.target.position.set(0, 3, 10);
+        Spot3.distance = 100; // ระยะที่แสงส่องถึง
+        scene.add(Spot3);
+        scene.add(Spot3.target);
+
+        // ✅ Point Light ที่สร้างเงา
+        const Pointlight = new THREE.PointLight(0xffffff, 1, 3);
+        Pointlight.position.set(-1.3, 2, 1.5);
+        scene.add(Pointlight);
+
+        const Pointlight2 = new THREE.PointLight(0xffffff, 3, 4);
+        Pointlight2.position.set(-2.5, 3, 4.5);
+        scene.add(Pointlight2);
+
+        const cubeUrls = [
+            'https://threejs.org/examples/textures/cube/Bridge2/posx.jpg',
+            'https://threejs.org/examples/textures/cube/Bridge2/negx.jpg',
+            'https://threejs.org/examples/textures/cube/Bridge2/posy.jpg',
+            'https://threejs.org/examples/textures/cube/Bridge2/negy.jpg',
+            'https://threejs.org/examples/textures/cube/Bridge2/posz.jpg',
+            'https://threejs.org/examples/textures/cube/Bridge2/negz.jpg'
+        ];
+        
+        const envMap = new THREE.CubeTextureLoader().load(cubeUrls);
+        envMap.encoding = THREE.sRGBEncoding;
+        scene.environment = envMap;
+
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 0.4,
+            roughness: 0.2,
+        });
+//------------------------------- cel --------------------------------------------
+        function makeCelMatWithTex(textureUrl) {
+            const tex = new THREE.TextureLoader().load(textureUrl);
+
+            return new THREE.ShaderMaterial({
+                vertexShader: `
+                    varying vec3 vNormal;
+                    varying vec3 vPosW;
+                    varying vec2 vUV;
+
+                    void main() {
+                        vNormal = normalize(mat3(modelMatrix) * normal);
+                        vPosW = (modelMatrix * vec4(position,1.0)).xyz;
+                        vUV = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                    }
+                `,
+                fragmentShader: `
+                    precision mediump float;
+                    varying vec3 vNormal;
+                    uniform vec3 uLightDir;
+                    varying vec3 vPosW;
+                    varying vec2 vUV;
+                    uniform sampler2D uTex;
+
+                    void main(){
+                        float diffuse = clamp(dot(vNormal, uLightDir), 0.3, 1.0);
+                        float levels = 5.0;                        
+                        diffuse = floor(diffuse * levels) / levels;
+                        diffuse += 0.5;
+
+                        vec3 R = reflect(-uLightDir, vNormal);
+                        vec3 V = normalize(cameraPosition - vPosW);
+                        float specular = max(pow(dot(R,V), 9.0), 0.0);
+                        specular = smoothstep(0.4, .6, specular);
+                        if(diffuse <= 0.5) specular = 0.0;
+
+                        vec3 base = texture2D(uTex, vUV).rgb;
+                        vec3 color = (base * diffuse) + vec3(specular);
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `,
+                uniforms: {
+                    uLightDir: { value: new THREE.Vector3(0.4, 1.0, 0.8).normalize() },
+                    uTex: { value: tex }
+                }
+            });
+        }
+
+//-------------------------------end cel--------------------------------------------
+        const clickable = [];
+        function addObj(mesh, pos, name) {
+                mesh.position.copy(pos);
+                mesh.name = name;
+                scene.add(mesh);
+                clickable.push(mesh);
+                return mesh;
+            }
+
+        //พื้น
+        const tex1 = new THREE.TextureLoader().load('https://weerapat-suw.github.io/Me.png', t => {
+            t.wrapS = THREE.RepeatWrapping;
+            t.wrapT = THREE.RepeatWrapping;
+        });
+
+        const mat1 = new THREE.MeshStandardMaterial({
+            map: tex1
+        });
+        
+        const floor = addObj(
+            new THREE.Mesh(new THREE.BoxGeometry(.4, 0.01, .6), mat1), // 0.5 คือความหนา
+            new THREE.Vector3(-.1, 3.1, -2.25), // ขยับลงครึ่งนึงเพื่อให้พื้นผิวอยู่ที่ y=0 2.4
+            'floor'
+        );
+    floor.rotation.x = -Math.PI / 2; // หมุนพื้นให้ขนตรง
+    floor.rotation.y = .2; // หมุนพื้นให้ขนตรง
+
+        addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.1, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/start.jpg')),//new THREE.BoxGeometry(0.1, 0.1, 0.3)
+                new THREE.Vector3(-2.3, 2.65, -.8),
+                'Sphere1'
+        );
+
+        const Sphere2 = addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.05, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/next.jpg')),
+                new THREE.Vector3(-1.8, 1.5, 1.7),
+                'Sphere2'
+        );
+    Sphere2.rotation.set(.5, .9, .4);
+
+        const Sphere3 = addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.05, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/back.jpg')),
+                new THREE.Vector3(-.62, 1.5, 1.7),
+                'Sphere3'
+        );
+    Sphere3.rotation.set(.5, 2, .4);
+
+        const Sphere4 = addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.1, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/back.jpg')),
+                new THREE.Vector3(-1, 3.3, -2.25),
+                'Sphere4'
+        );
+    Sphere4.rotation.set(0, -1, 0);
+
+        const Sphere5 = addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.1, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/next.jpg')),
+                new THREE.Vector3(1, 3.3, -2.25),
+                'Sphere5'
+        );
+    Sphere5.rotation.set(0, -2, 0);
+
+    const Sphere6 = addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.02, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/back.jpg')),
+                new THREE.Vector3(-2, 2.92, 4.3),
+                'Sphere6'
+        );
+    Sphere6.rotation.set(0, 1.4, 0);
+
+    const Sphere7 = addObj(
+                new THREE.Mesh(new THREE.SphereBufferGeometry(.02, 200, 200), makeCelMatWithTex('https://weerapat-suw.github.io/next.jpg')),
+                new THREE.Vector3(-2, 2.97, 4.3),
+                'Sphere7'
+        );
+    Sphere7.rotation.set(0, 1.4, 0);
+
+        const VIEWS = {
+                Sphere1: { pos: new THREE.Vector3(-1.2, 2, 1.2), tar: new THREE.Vector3(-1.2, 0, 5) },//(ตน.กล้อง , ตน.เป้าหมายที่มอง)
+                Sphere2: { pos: new THREE.Vector3(0, 3, -1), tar: new THREE.Vector3(0, 2.5, -5) },
+                Sphere3: { pos: new THREE.Vector3(-1.5, 3, -.8), tar: new THREE.Vector3(-5, 3, -.8) },
+                Sphere4: { pos: new THREE.Vector3(-1.2, 2, 1.2), tar: new THREE.Vector3(-1.2, 0, 5) },
+                Sphere5: { pos: new THREE.Vector3(-2, 3, 4), tar: new THREE.Vector3(4, 3, 10) },
+                Sphere6: { pos: new THREE.Vector3(0, 3, -1), tar: new THREE.Vector3(0, 2.5, -5) },
+            };
+            
+        // --- Raycaster + คลิกเพื่อสลับมุม ---
+            const raycaster = new THREE.Raycaster();
+            const pointer = new THREE.Vector2();
+
+            function setPointer(e) {
+                const r = renderer.domElement.getBoundingClientRect();
+                const x = (e.clientX ?? e.touches[0].clientX) - r.left;
+                const y = (e.clientY ?? e.touches[0].clientY) - r.top;
+                pointer.x = (x / r.width) * 2 - 1;
+                pointer.y = -(y / r.height) * 2 + 1;
+            }
+
+            let ammo = null;
+            let ammoMoving = false;   // true = กระสุนเริ่มเคลื่อน
+            
+            function onPick(e) {
+                setPointer(e);
+                raycaster.setFromCamera(pointer, camera);
+                const hit = raycaster.intersectObjects(clickable, false)[0];
+                if (!hit) return;
+
+                // ถ้า Sphere7 ถูกกด ให้กระสุนเริ่มเคลื่อน
+                if (hit.object.name === "Sphere7" && ammo) {
+                    ammoMoving = true;
+                }
+
+                const view = VIEWS[hit.object.name];
+                if (!view) return;
+
+                cameraPosition = view.pos;
+                pickObjectPosition = view.tar;
+                controls.update();
+
+                
+            }
+
+            renderer.domElement.addEventListener('click', onPick);
+            renderer.domElement.addEventListener('touchend', (e) => { onPick(e); }, { passive: true });
+
+            // --- Resize ---
+            addEventListener('resize', () => {
+                camera.aspect = innerWidth / innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(innerWidth, innerHeight);
+            });
+
+            function lerp(a, b, t) {
+                return a + (b - a) * t;   // t ใน [0..1]
+            }
+
+            let t = 0.0, tP = 0.0;
+            
+            let CylinderTarget = new THREE.Vector3();
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('https://weerapat-suw.github.io/Map2.glb', function (gltf) {
+            const object = gltf.scene;
+            object.castShadow = true; // ✅ วัตถุนี้สร้างเงา
+            object.traverse(function (child) {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            object.receiveShadow = true;
+            scene.add(object);
+        }, undefined, function (error) {
+            console.error('Error loading GLTF:', error);
+        });
+        loader.load('https://weerapat-suw.github.io/sni3.glb', function (gltf) {
+            const object = gltf.scene;
+            object.castShadow = true; // ✅ วัตถุนี้สร้างเงา
+            object.traverse(function (child) {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            object.position.set(-1.8, 2.8, 4.1);
+            object.receiveShadow = true;
+            scene.add(object);
+        }, undefined, function (error) {
+            console.error('Error loading GLTF:', error);
+        });
+        
+        loader.load('https://weerapat-suw.github.io/ammo2.glb', function (gltf) {
+            ammo = gltf.scene;
+            ammo.castShadow = true; // ✅ วัตถุนี้สร้างเงา
+            ammo.traverse(function (child) {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            ammo.position.set(-1.8, 3, 5.6);
+            ammo.receiveShadow = true;
+            scene.add(ammo);
+        }, undefined, function (error) {
+            console.error('Error loading GLTF:', error);
+        });
+
+//-------------------------------แผนที่บนโต๊ะ-------------------------------------
+        const uniforms = { 
+            uTime: { value: 0.0 } ,
+            uHeight: { value: null }, // texture ที่จะโหลดมา
+        };
+        
+        // ---- Shaders (sample texture ใน vertex แล้วดัน pos.z) ----
+        const vert = `
+            uniform sampler2D uHeight;
+            uniform float uTime;
+            varying float vH;
+
+            void main(){
+
+            vec3 pos = position;
+            float h = texture2D(uHeight, uv).r * (sin(uTime) + 1.5); 
+            pos.z = pos.z + (h * 0.05);
+            vH = h;                             
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+
+            }
+        `;
+        const frag = `
+            precision mediump float;
+            varying float vH;
+
+            void main(){
+
+            // ระบายสีตามความสูง
+            gl_FragColor = vec4(0.0, vH, 0.6 + 0.4 * vH, 1.0);
+
+            }
+        `;
+
+        new THREE.TextureLoader().load('https://lh5.googleusercontent.com/proxy/9z9orumjkJJc3PUhQsinXUC6devsMULWFJkG1f72LPyGQY660g0ZTCMxk_P-ALjaM2Mcdh1CLzDQYWzpbqebv1pwjfoSz8A2nIwSXsqs4baW92bHAtPBI_znp_8GtbpN-QN-k-Mj6A=s0-d', (tex) => {
+
+            uniforms.uHeight.value = tex;
+            const geo = new THREE.PlaneBufferGeometry(1, .5, 50, 50);
+            const mat = new THREE.ShaderMaterial({
+                vertexShader: vert,
+                fragmentShader: frag,
+                uniforms: uniforms,
+                side: THREE.DoubleSide
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(-1.2,1.45,1.9);
+            mesh.rotation.x = -Math.PI / 2;
+            scene.add(mesh);
+        });
+
+        // Resize & Render loop
+        addEventListener('resize', ()=>{
+            camera.aspect = innerWidth/innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+
+    const ammoCamOffset = new THREE.Vector3(-.5, 0, -.5); // กล้องอยู่ข้างหลังและสูงเล็กน้อย
+
+        (function loop(){
+             uniforms.uTime.value += 0.02;
+            
+            t += .01;
+                if(t>1.0) {
+                    t=0.0;
+                    
+                    // CylinderTarget.y = 0.5;
+                    // CylinderTarget.z = lerp(-4.0, 4.0, Math.random());
+                }
+                controls.update();
+
+                //box.position.lerp(CylinderTarget, 0.02);
+                tP += .01;
+                Pointlight2.position.z = 4.5 + Math.sin(tP) * 1; // <-- ขยับไฟจริง
+                controls.target.lerp(pickObjectPosition, 0.02);//ของจริง
+                camera.position.lerp(cameraPosition, 0.02);//ของจริง
+
+            if (ammo && ammoMoving) {
+                // move ammo toward target
+                ammo.position.z += 0.01; // <-- ขยับเฉพาะเมื่อโหลดเสร็จ
+
+                // --- กล้องตามกระสุน ---
+                const desiredCamPos = ammo.position.clone().add(ammoCamOffset);
+                camera.position.lerp(desiredCamPos, 0.2); // ค่อย ๆ เคลื่อน
+                camera.lookAt(ammo.position);
+
+                if(ammo.position.z > 24) {
+                    ammoMoving = false;
+                    ammo.position.set(-1.8, 3, 5.6);
+                }
+            }
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(loop);
+        })();
+//--------------------------------แผนที่บนโต๊ะ----------------------------------------
+    </script>
+</body>
+
+</html>
